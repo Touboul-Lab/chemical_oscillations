@@ -1,16 +1,14 @@
-verbosity = 1;
+verbosity = 0;
 
 int seed=10000000*clock();
 randinit(seed);
 
-real runnumBase = 1;
+real runnumBase = 25;
 
 include "getARGV.idp"
 real runnum = getARGV("-runnum",runnumBase);
 
 real startTime = clock();
-//real Ilow = 0.025 - 0.005*I;
-//real Ihigh = 0.025 - 0.005*I;
 
 real Pone = 0.124; // ODE parameter
 real Ptwo = 0.77; // ODE parameter
@@ -20,13 +18,13 @@ real c0v0 = 0.0013;
 real epsilon = 0.3; // ODE parameter
 real chi0 = 0.338;
 real chi1 = 0.518;
-real chistar = 0.1*runnum; // coupling coefficient between phi and v, PDE parameter, 1-1.75 in the PNAS paper
+real chistar = 2; // coupling coefficient between phi and v, PDE parameter, 1-1.75 in the PNAS paper
 real lambdaperp = 1.06;
 real Lambda0 = 100;
 real phizero = 0.139; // fraction of undeformed gel, PDE parameter
 
 string name = "run_" + runnum;
-real L = 100; // domain size
+real L = 125; // domain size
 real solmin = 100000;
 
 func real F(real u, real v, real phi, real I, real Pone, real Ptwo, real q, real f){ 
@@ -55,6 +53,10 @@ func real gradient(real pos, real P1, real P2, real rho1, real rho2){
 	return temp;
 }
 
+func real gradientSmooth(real g, real w0, real w1, real t1, real s1){
+	return w0 + (w1-w0)/(1 + exp(-(g-t1)/s1));
+}
+
 func real IC(real pos, real P1){
 	real temp = 0;
 	if (pos <= P1){
@@ -66,12 +68,12 @@ func real IC(real pos, real P1){
 // Computational parameters
 include "ffmatlib.idp"
 
-int nx=100;
+int nx=125;
 int i = 0;
-int n = 300000;
-real Steps2=200; // write solution to a file every x steps
+int n = 400000;
+real Steps2=250; // write solution to a file every x steps
 real h = 0.001; 
-real Stepsplot=500; // output the minimum to terminal every x steps 
+real Stepsplot=200000; // output the minimum to terminal every x steps 
 real t = 0;
 
 // Define mesh 
@@ -88,11 +90,11 @@ meshL Th = segment( nx, [L*x]);
 
 fespace Vh(Th,P1); // periodic = [[1,0,0],[51,0,0]]
 Vh uN1, tU;
-Vh uN = IC(x/L, 0.05) + 0.005*randreal1();
+Vh uN = 0.01 + gradientSmooth(x/L, 0, 0.25, 0.85, 0.05);//IC(x/L, 0.05) + 0.005*randreal1();
 Vh vN1, tV; 
-Vh vN = uN + 0.005*randreal1();
+Vh vN = 0.01 + gradientSmooth(x/L, 0, 0.25, 0.85, 0.05);//uN + 0.005*randreal1();
 Vh phiN1, tPhi;
-Vh phiN = 0.1 + 0.01*randreal1();
+Vh phiN = 0.1;
 
 Vh temp;
 
@@ -100,7 +102,13 @@ uN1 = uN;
 vN1 = vN;
 phiN1 = phiN;
 
-Vh Igrad = gradient(x/L, 0.35, 0.55, 0.005, 0.05); // replaces I in F and G (just the BZ reactions)
+
+//Vh Igrad = gradient(x/L, 0.35, 0.55, 0, 0.025); // replaces I in F and G (just the BZ reactions)
+real w0 = 0;
+real w1 = 0.025;
+real s1 = 0.045;
+real t1 = 0.45;
+Vh Igrad = gradientSmooth(x/L, w0, w1, t1, s1);
 
 // Weak formulation fo the model
 problem KS( [uN1,vN1,phiN1] , [tU,tV,tPhi] ) = 
